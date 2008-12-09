@@ -58,6 +58,7 @@ function collapse_text_filter($op, $delta = 0, $format = -1, $text = '') {
 
 function collapse_text_process($text) {
   $text = preg_replace_callback('/\[collapse( collapsed)?\](.+?)\[\/collapse\]/sm', "_collapse_text_replace_callback", $text);
+  return $text;
 }
 
 function _collapse_text_replace_callback($matches) {
@@ -82,7 +83,7 @@ function _collapse_text_replace_callback($matches) {
   );
   $render_array['text_contents'] = array(
     '#type' => 'markup',
-    '#value' => '<div>' . $interior_text . '</div>',
+    '#value' => '<div>' . $interior . '</div>',
   );
   
   return drupal_render($render_array);
