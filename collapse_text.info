@@ -4,9 +4,5 @@ name = Collapse Text
 description = "Input filter allowing plain text sections to become collapsible."
 dependencies = filter
 package = "Input filters"
-
-; Information added by drupal.org packaging script on 2007-11-12
-version = "5.x-1.0"
-project = "collapse_text"
-datestamp = "1194885003"
-
+core = 6.x
+php = 5.2

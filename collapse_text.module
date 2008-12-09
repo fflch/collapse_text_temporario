@@ -8,11 +8,11 @@
  */
 
 /**
- * implementation of hook_filter_tips()
+ * Implementation of hook_filter_tips().
  */
 function collapse_text_filter_tips($delta, $format, $long = false) {
   if ($long) {
-    return t('Enclose sections of text in [collapse] and [/collapse] to turn them into collapsible sections. If you use [collapse collapsed] and [/collapse], the section will start out collapsed. The legend for the section is taken from the first header (<h1>, <h2>, <h3>, ...) found. In the absence of a header, a default title is used.');
+    return t('Enclose sections of text in [collapse] and [/collapse] to turn them into collapsible sections. If you use [collapse collapsed] and [/collapse], the section will start out collapsed. The legend for the section is taken from the first header (&lt;h1&gt;, &lt;h2&gt;, &lt;h3&gt;, ...) found. In the absence of a header, a default title is used.');
   }
   else {
     return t('Make collapsible text blocks using [collapse] and [/collapse].');
@@ -20,43 +20,60 @@ function collapse_text_filter_tips($delta, $format, $long = false) {
 }
 
 /**
- * implementation of hook_filter()
+ * Implementation of hook_filter().
  */
 function collapse_text_filter($op, $delta = 0, $format = -1, $text = '') {
-  
   switch ($op) {
     case 'list':
-      return array(0 => t('Collapse text'));
+      return array(
+        0 => t('Collapse text')
+      );
+      break;
       
     case 'description':
       return t('Make collapsing text sections');
+      break;
+    
+    case 'settings':
+      // This filter has no user settings.
+      break;
+    
+    case 'no cache':
+      return FALSE;
+      break;
+    
+    case 'prepare':
+      return $text;
+      break;
       
     case 'process':
-      $text = preg_replace_callback('/\[collapse( collapsed)?\](.+?)\[\/collapse\]/sm', "_collapse_text_replace_callback", $text);
-      return $text;
+      return collapse_text_process($text);
+      break;
     
     default:
       return $text;
+      break;
   }
 }
 
-/**
- * this callback determines what will be shown based on the roles passed
- */
-function _collapse_text_replace_callback($matches) {
+function collapse_text_process($text) {
+  $text = preg_replace_callback('/\[collapse( collapsed)?\](.+?)\[\/collapse\]/sm', "_collapse_text_replace_callback", $text);
+}
 
-  $collapsed = ($matches[1] == ' collapsed');
+function _collapse_text_replace_callback($matches) {
+  $collapsed = ($matches[1] == 'collapsed');
+  $interior = $matches[2];
   
-  $interior_text = $matches[2];
-  
+  // find the first heading tag in the interior text, and use that
+  // heading for the legend of the fieldset.
   $h_matches = array();
-  preg_match('/<h\d[^>]*>(.+?)<\/h\d>/smi', $interior_text, $h_matches);
+  preg_match('/<h\d[^>]*>(.+?)<\/h\d>/smi', $interior, $h_matches);
   $title = strip_tags($h_matches[1]);
   
   if (empty($title)) {
     $title = 'Use the arrow to expand or collapse this section';
   }
-    
+  
   $render_array = array(
     '#type' => 'fieldset',
     '#title' => $title,
