@@ -1,0 +1,74 @@
+<?php
+
+// $Id$
+
+/**
+ * @file
+ * collapse_text is an input filter that allows text to be collapsible
+ */
+
+/**
+ * implementation of hook_filter_tips()
+ */
+function collapse_text_filter_tips($delta, $format, $long = false) {
+  if ($long) {
+    return t('Enclose sections of text in [collapse] and [/collapse] to turn them into collapsible sections. If you use [collapse collapsed] and [/collapse], the section will start out collapsed. The legend for the section is taken from the first header (<h1>, <h2>, <h3>, ...) found. In the absence of a header, a default title is used.');
+  }
+  else {
+    return t('Make collapsible text blocks using [collapse] and [/collapse].');
+  }
+}
+
+/**
+ * implementation of hook_filter()
+ */
+function collapse_text_filter($op, $delta = 0, $format = -1, $text = '') {
+  
+  switch ($op) {
+    case 'list':
+      return array(0 => t('Collapse text'));
+      
+    case 'description':
+      return t('Make collapsing text sections');
+      
+    case 'process':
+      $text = preg_replace_callback('/\[collapse( collapsed)?\](.+?)\[\/collapse\]/sm', "_collapse_text_replace_callback", $text);
+      return $text;
+    
+    default:
+      return $text;
+  }
+}
+
+/**
+ * this callback determines what will be shown based on the roles passed
+ */
+function _collapse_text_replace_callback($matches) {
+
+  $collapsed = ($matches[1] == ' collapsed');
+  
+  $interior_text = $matches[2];
+  
+  $h_matches = array();
+  preg_match('/<h\d[^>]*>(.+?)<\/h\d>/smi', $interior_text, $h_matches);
+  $title = strip_tags($h_matches[1]);
+  
+  if (empty($title)) {
+    $title = 'Use the arrow to expand or collapse this section';
+  }
+    
+  $render_array = array(
+    '#type' => 'fieldset',
+    '#title' => $title,
+    '#collapsible' => true,
+    '#collapsed' => $collapsed,
+  );
+  $render_array['text_contents'] = array(
+    '#type' => 'markup',
+    '#value' => '<div>' . $interior_text . '</div>',
+  );
+  
+  return drupal_render($render_array);
+}
+
+?>
