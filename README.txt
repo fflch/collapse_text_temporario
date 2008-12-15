@@ -7,6 +7,9 @@ Surround text with `[collapse]` and `[/collapse]` to make that
 text be a collapsible section. You may open with `[collapse collapsed]`
 instead to make it default closed.
 
-The "legend" for the created fieldset will be taken from the first
+The "legend" for the created fieldset may be set by putting a
+title into the [collapse] tag as [collapse title=my title]. If you
+wish to combine the options, you should do [collapse collapsed title=...].
+If no title is specified, the title will be taken from the first
 HTML header tag (<h1>, <h2>, <h3>, ...) found. If there is no such
 tag found, the title will default to an explanatory text title.
