@@ -116,11 +116,16 @@ function collapse_text_process ($text) {
     }
   }
   
-  // turn the levels and the string into a structured tree
-  $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
-  
-  // take the tree and turn it back into a string
-  $text = _collapse_text_process_recurse_tree($tree);
+  // process the text if there are any collapse tags...
+  if (count($levels)) {
+    // turn the levels and the string into a structured tree
+    $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
+    
+    // take the tree and turn it back into a string
+    $text = _collapse_text_process_recurse_tree($tree);
+    
+    $text = '<form>' . $text . '</form>';
+  }
   
   return $text;
 }
