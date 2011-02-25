@@ -1,4 +1,3 @@
-$Id$
 
 collapse_text.module is an input filter to allow text to be
 made into collapsible sections (like on editing forms).
