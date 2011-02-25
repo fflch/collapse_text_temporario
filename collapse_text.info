@@ -1,4 +1,3 @@
-; $Id$
 
 name = Collapse Text
 description = "Input filter allowing plain text sections to become collapsible."
