@@ -13,7 +13,7 @@
 /**
  * Implementation of hook_filter_tips().
  */
-function collapse_text_filter_tips($delta, $format, $long = false) {
+function collapse_text_filter_tips ($delta, $format, $long = false) {
   if ($long) {
     return t('Enclose sections of text in [collapse] and [/collapse] to '
       + 'turn them into collapsible sections.  If you use [collapse collapsed] '
@@ -32,7 +32,7 @@ function collapse_text_filter_tips($delta, $format, $long = false) {
 /**
  * Implementation of hook_filter().
  */
-function collapse_text_filter($op, $delta = 0, $format = -1, $text = '') {
+function collapse_text_filter ($op, $delta = 0, $format = -1, $text = '') {
   switch ($op) {
     case 'list':
       return array(
@@ -123,7 +123,19 @@ function collapse_text_process ($text) {
     // take the tree and turn it back into a string
     $text = _collapse_text_process_recurse_tree($tree);
     
-    $text = '<form>' . $text . '</form>';
+    // see #634666, per deviantintegral
+    // @todo is there a problem with using the form #type?
+    // if so, change the theme function to just return <form>$text</form>
+    $form = array(
+      '#type'  => 'form',
+      '#theme' => 'collapse_text_form',
+      'collapsed_internal_text' => array(
+        '#type'  => 'markup',
+        '#value' => $text,
+      ),
+    );
+    
+    $text = drupal_render($form);
   }
   
   return $text;
@@ -134,7 +146,7 @@ function collapse_text_process ($text) {
  *
  * this function is recursive.
  */
-function _collapse_text_process_recurse_levels($string, $string_start, $string_end, $elements) {
+function _collapse_text_process_recurse_levels ($string, $string_start, $string_end, $elements) {
   
   $text_start = $string_start;
   $text_length = $string_end - $string_start;
@@ -354,7 +366,7 @@ function _collapse_text_process_child_item ($item) {
  *
  * per #947710, jrockowitz
  */
-function collapse_text_preprocess_page(&$variables) {
+function collapse_text_preprocess_page (&$variables) {
   global $theme;
 
   // Add collapse.js if a collapsible fieldset is found in a region or the main content.
@@ -376,9 +388,12 @@ function collapse_text_preprocess_page(&$variables) {
 /**
  * Implementation of hook_theme().
  */
-function collapse_text_theme($existing, $type, $theme, $path) {
+function collapse_text_theme ($existing, $type, $theme, $path) {
   return array(
     'collapse_text_fieldset' => array(
+      'arguments' => array('element'),
+    ),
+    'collapse_text_form' => array(
       'arguments' => array('element'),
     ),
   );
@@ -397,7 +412,14 @@ function collapse_text_theme($existing, $type, $theme, $path) {
  *
  * @ingroup themeable
  */
-function theme_collapse_text_fieldset($element) {
+function theme_collapse_text_fieldset ($element) {
+  return drupal_render($element);
+}
+
+/**
+ * Theme the outer form. This is required for the fieldset(s) to validate.
+ */
+function theme_collapse_text_form ($element) {
   return drupal_render($element);
 }
 
@@ -417,7 +439,7 @@ function theme_collapse_text_fieldset($element) {
  * @return
  *   The converted string
  */
-function collapse_text_id_safe($string) {
+function collapse_text_id_safe ($string) {
   // Replace with dashes anything that isn't A-Z, numbers, dashes, or underscores.
   $string = strtolower(preg_replace('/[^a-zA-Z0-9-]+/', '-', $string));
 
