@@ -4,12 +4,16 @@
 /**
  * @file
  * collapse_text is an input filter that allows text to be collapsible
+ *
+ * Attributions not otherwhere noted:
+ * - #259535 and #233877, ability to specify title in tag. Thanks rivena, Justyn
+ * - #233877 requested ability to have nested tags.
  */
 
 /**
  * Implementation of hook_filter_tips().
  */
-function collapse_text_filter_tips($delta, $format, $long = false) {
+function collapse_text_filter_tips ($delta, $format, $long = false) {
   if ($long) {
     return t('Enclose sections of text in [collapse] and [/collapse] to '
       + 'turn them into collapsible sections.  If you use [collapse collapsed] '
@@ -28,7 +32,7 @@ function collapse_text_filter_tips($delta, $format, $long = false) {
 /**
  * Implementation of hook_filter().
  */
-function collapse_text_filter($op, $delta = 0, $format = -1, $text = '') {
+function collapse_text_filter ($op, $delta = 0, $format = -1, $text = '') {
   switch ($op) {
     case 'list':
       return array(
@@ -62,130 +66,307 @@ function collapse_text_filter($op, $delta = 0, $format = -1, $text = '') {
   }
 }
 
-function collapse_text_process($text) {
-  $text = collapse_text_process_recurs($text);
+/**
+ * Implementation of hook_filter($op='process').
+ *
+ * Earlier versions of this were done with a regular expression, but that
+ * was proving complicated. This version uses its own "parser" to process the text.
+ */
+function collapse_text_process ($text) {
+  $matches = array();
+  
+  // find all of the collapse tags and their location in the string
+  $regex = '/
+    (?<!\\\\)     # not proceeded by a backslash
+    \[            # opening bracket
+    \/?           # a closing tag?
+    collapse      # the word collapse
+    [^\]]*        # everything until the closing bracket
+    \]            # a closing bracket
+  /smx';
+  preg_match_all($regex, $text, $matches, PREG_OFFSET_CAPTURE);
+  
+  // determine the level of nesting for each element.
+  $levels = array();
+  $curr_level = 0;
+  foreach ($matches[0] as $item) {
+    $type = 'unknown';
+    if (substr($item[0], 0, 9) == '[collapse') {
+      $type = 'start';
+    }
+    elseif (substr($item[0], 0, 10) == '[/collapse') {
+      $type = 'end';
+    }
+    
+    if ($type == 'start') {
+      $curr_level++;
+    }
+    
+    $levels[] = array(
+      'type'  => $type,
+      'tag'   => $item[0],
+      'start' => $item[1],
+      'end'   => $item[1] + strlen($item[0]),
+      'level' => $curr_level,
+    );
 
-  // remove non-escaped collapse open tags
-  $text = preg_replace('/(?<!\\\\)
-                 \[
-                    collapse
-                    (\ collapsed)?
-                    (?:\ style=([^\] ]*))?
-                    (?:\ title=([^\]]*))?
-                 \]/smx', "", $text);
-
-  // remove non-escaped collapse close tags
-  $text = preg_replace('/(?<!\\\\)\[\/collapse\]/smx', "", $text);
-
-  // remove backslash on escaped open tags
-  $text = preg_replace('/\\\\
-                 (\[
-                    collapse
-                    (?:\ collapsed)?
-                    (?:\ style=([^\] ]*))?
-                    (?:\ title=[^\]]*)?
-                 \])/smx', '$1', $text);
-
-  // remove backslash on escaped close tags
-  $text = preg_replace('/\\\\(\[\/collapse\])/smx', "$1", $text);
-
+    if ($type == 'end') {
+      $curr_level--;
+    }
+  }
+  
+  // process the text if there are any collapse tags...
+  if (count($levels)) {
+    // turn the levels and the string into a structured tree
+    $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
+    
+    // take the tree and turn it back into a string
+    $text = _collapse_text_process_recurse_tree($tree);
+    
+    // see #634666, per deviantintegral
+    // @todo is there a problem with using the form #type?
+    // if so, change the theme function to just return <form>$text</form>
+    $form = array(
+      '#type'  => 'form',
+      '#theme' => 'collapse_text_form',
+      'collapsed_internal_text' => array(
+        '#type'  => 'markup',
+        '#value' => $text,
+      ),
+    );
+    
+    $text = drupal_render($form);
+  }
+  
   return $text;
 }
 
 /**
- * Provides a layer of encapsulation for the regex call.
+ * translate the flat levels array into a tree.
+ *
+ * this function is recursive.
  */
-function collapse_text_process_recurs($text) {
-  // Per #259535 and #233877, add ability to specify title
-  // in collapse text. Thanks rivena, Justyn
-  // Per #233877, add ability to have nested sections.
-  $text = preg_replace_callback('/
-               (?:<p(?:\s[^>]*)?>)?       # (remove paragraph if right before)
-               (?<!\\\\)                  # make sure the tag is not escaped with a backslash
-               \[                         # look for an opening bracket
-                  collapse                # followed by the word `collapse`
-                  (\ collapsed)?          # followed by (optionally) a space and the word `collapsed` (captured)
-                  (?:\ style=([^\] ]*))?  # followed by (optionally) a space and a style, consisting of any
-                                          #   characters except a close bracket (captured)
-                  (?:\ title=([^\]]*))?   # followed by (optionally) a space and a title, consisting of any
-               \]                         # followed by a closing bracket
-               (?:<\/p\s*>)?              # (remove paragraph if right after)
-               ( (?: [^[]                 # followed by either a non open bracket,
-                     | \\\\\[             #   or an escaped open bracket
-                     | \[(?!\/?collapse)  #   or a non collapse tag
-                     | (?R) )+ )          #   or the expression recursively run.
-               (?:<p(?:\s[^>]*)?>)?       # (remove paragraph if right before)
-               (?<!\\\\)                  # make sure the tag is not escaped with a backslash
-               \[\/collapse\]             # a closing "tag", which is a slash followed by `collapse` in brackets
-               (?:<\/p\s*>)?              # (remove paragraph if right after)
-              /smx',
-    "_collapse_text_replace_callback", $text);
+function _collapse_text_process_recurse_levels ($string, $string_start, $string_end, $elements) {
+  
+  $text_start = $string_start;
+  $text_length = $string_end - $string_start;
+  $child_start = $string_start;
+  $child_end = $string_end;
+  $slice_start = -1;
+  $slice_end = count($elements);
 
-  return $text;
-}
-
-function _collapse_text_replace_callback($matches) {
-  global $base_url;
-
-  // 2008-12-15 REMorse (no issue number) added space to make
-  // $collapsed work
-  $collapsed = ($matches[1] == ' collapsed');
-  $style     = trim($matches[2]);
-  $title     = trim($matches[3]);
-  $interior  = $matches[4];
-
-  if (empty($title)) {
-    // If a title is not supplied, look for a header (<h1>, <h2> ...)
-    // and use it as the title.
-    $h_matches = array();
-    preg_match('/(<h\d[^>]*>(.+?)<\/h\d>)/smi', $interior, $h_matches);
-    $title = strip_tags($h_matches[2]);
-
-    // If we get the title from the first header tag,
-    // then we should remove the header tag so it's not repeated
-    if (!empty($title)) {
-      $replacement = "";
-      $occ = 1;
-      $interior = str_replace($h_matches[0], $replacement, $interior, $occ);
+  // find the first start element
+  $elt_start_found = FALSE;
+  $elt_start = 0;
+  while((! $elt_start_found) and ($elt_start < count($elements))) {
+    if ($elements[$elt_start]['type'] == 'start') {
+      $elt_start_found = TRUE;
+    }
+    else {
+      $elt_start++;
     }
   }
-
-  if (empty($title)) {
-    // If there is still no title, provide some default text.
-    // Added call to t() per #256176 yngens
-    $title = t('Use the arrow to expand or collapse this section');
+  
+  if ($elt_start_found) {
+    // if there is an opening element, set the text length to everything up to it
+    $text_length = $elements[$elt_start]['start'] - $string_start;
+    $child_start = $elements[$elt_start]['end'];
+    $slice_start = $elt_start + 1;
   }
-
-  $form = array(
-    '#prefix' => '<form action="' . $base_url . '/">',
-    '#suffix' => '</form>',
-    '#theme'  => 'collapse_text_fieldset',
-  );
-
-  $form['fieldset'] = array(
-    '#type'        => 'fieldset',
-    '#title'       => $title,
-    '#collapsible' => true,
-    '#collapsed'   => $collapsed,
-  );
-
-  if (!empty($style)) {
-    $form['fieldset']['#attributes'] = array(
-      'class' => collapse_text_id_safe($style),
-    );
+  else {
+    // otherwise, return everything in this segment as a string
+    return array(array(
+      'type'  => 'text',
+      'value' => substr($string, $text_start, $text_length),
+    ));
   }
-
-  $form['fieldset']['text_contents'] = array(
-    '#type'   => 'markup',
-    '#prefix' => '<div class="collapse-text">',
-    '#value'  => collapse_text_process_recurs($interior),
-    '#suffix' => '</div>',
+  
+  // find the next end element at the same level
+  $elt_end_found = FALSE;
+  $elt_end = $elt_start;
+  while((! $elt_end_found) and ($elt_end < count($elements))) {
+    if (($elements[$elt_end]['type'] == 'end') and ($elements[$elt_end]['level'] == $elements[$elt_start]['level'])) {
+      $elt_end_found = TRUE;
+    }
+    else {
+      $elt_end++;
+    }
+  }
+  
+  if ($elt_end_found) {
+    $child_end = $elements[$elt_end]['start'];
+    $slice_length = $elt_end - $slice_start;
+  }
+  else {
+    // there is a matching failure
+    // try skipping the start element...
+    if (($elt_start + 1) < count($elements)) {
+      return _collapse_text_process_recurse_levels($string, $string_start, $string_end, array_slice($elements, $elt_start + 1));
+    }
+    else {
+      // fall back to just returning the string...
+      $text_length = $string_end - $text_start; // reset the text length
+      return array(array(
+        'type' => 'text',
+        'value' => substr($string, $text_start, $text_length),
+      ));
+    }
+  }
+  
+  
+  $parts = array();
+  
+  // add the text before the opening element
+  $parts[] = array(
+    'type'  => 'text',
+    'value' => substr($string, $text_start, $text_length),
   );
-
-  return drupal_render($form);
+  
+  // add the child element
+  $parts[] = array(
+    'type'  => 'child',
+    'tag'   => $elements[$elt_start]['tag'],
+    'value' => _collapse_text_process_recurse_levels($string, $child_start, $child_end, array_slice($elements, $slice_start, $slice_length)),
+  );
+  
+  // tail recurse (which ideally could be optimized away, although it won't be...) to handle
+  // any siblings
+  $parts = array_merge($parts,
+                       _collapse_text_process_recurse_levels($string, $elements[$elt_end]['end'], $string_end, array_slice($elements, $elt_end)));
+  
+  // return the result
+  return $parts;
 }
 
-function collapse_text_preprocess_page(&$variables) {
+/**
+ * Take a nested tree and turn it into a string.
+ *
+ * This function is recursive.
+ */
+function _collapse_text_process_recurse_tree ($tree) {
+  $parts = array();
+  
+  foreach ($tree as $item) {
+    // iterate over the tree
+    if ($item['type'] == 'text') {
+      $parts[] = _collapse_text_process_text_item($item['value']);
+    }
+    elseif ($item['type'] = 'child') {
+      $parts[] = _collapse_text_process_child_item($item);
+    }
+  }
+  
+  return join($parts);
+}
+
+/**
+ * process a text item.
+ */
+function _collapse_text_process_text_item ($item) {
+
+  // remove any leftover [collapse] or [/collapse] tags, such as might be caused by the teaser
+  // leaving out the closing tag
+  $item = preg_replace('/(?<!\\\\)\[\/?collapse[^\]]*\]/', '', $item);
+
+  // remove the first backslash before any collapse tags. This allows collapse tags to be
+  // escaped.
+  $item = str_replace(array('\\[collapse', '\\[/collapse'),
+                      array('[collapse',   '[/collapse'),
+                      $item);
+
+  // clear out some miscellaneous tags that are introduced by visual editors...
+  $item = preg_replace('/^<\/p>/', '', $item); // close paragraph right at the start
+  $item = preg_replace('/<p(?:\s[^>]*)?>$/', '', $item); // open paragraph right at the end
+  
+  return $item;
+}
+
+/**
+ * process a child item.
+ */
+function _collapse_text_process_child_item ($item) {
+
+  // parse the tag into parts
+  $tag_matches = array();
+  preg_match('/\[collapse( collapsed)?(?: style=([^\]]*))?(?: title=([^\]]*))?\]/', $item['tag'], $tag_matches);
+  
+  $collapsed = ($tag_matches[1] == ' collapsed');      
+  $style     = trim($tag_matches[2]);
+  $title     = trim($tag_matches[3]);
+  
+  // clean up quotes on the title and style items
+  if (!empty($style)) {
+    // remove any leading and trailing quotes
+    $style = preg_replace('/^["\']*/', '', $style);
+    $style = preg_replace('/["\']*$/', '', $style);
+  }
+  if (!empty($title)) {
+    // remove any leading and trailing quotes
+    $title = preg_replace('/^["\']*/', '', $title);
+    $title = preg_replace('/["\']*$/', '', $title);
+  }
+  
+  // if a title is not supplied, look in the first child for a header tag
+  if (empty($title)) {
+    if ($item['value'][0]['type'] == 'text') {
+      $h_matches = array();
+      preg_match('/(<h\d[^>]*>(.+?)<\/h\d>)/smi', $item['value'][0]['value'], $h_matches);
+      $title = strip_tags($h_matches[2]);
+      
+      // if we get the title from the first header tag, we should remove it from
+      // the text so that it isn't repeated.
+      if (!empty($title)) {
+        $occ = 1;
+        $item['value'][0]['value'] = str_replace($h_matches[0], '', $item['value'][0]['value'], $occ);
+      }
+    }
+  }
+  
+  // if still no title, put in some default text
+  if (empty($title)) {
+    $title = t('Use the arrow to expand or collapse this section');
+  }
+  
+  // create a fieldset that can be themed.
+  // per #634666, deviantintegral, although not including the form tag, as we allow nesting.
+  $fieldset = array(
+    '#type'        => 'fieldset',
+    '#title'       => $title,
+    '#collapsible' => TRUE,
+    '#collapsed'   => $collapsed,
+    '#theme'       => 'collapse_text_fieldset',
+  );
+  
+  // clean up any styles provided, and add our own class
+  $fixed_styles = array('collapsed-text-fieldset');
+  if (!empty($style)) {
+    $styles = explode(' ', $style);
+    foreach($styles as $s) {
+      $fixed_styles[] = collapse_text_id_safe($s);
+    }
+  }
+  $fieldset['#attributes'] = array(
+    'class' => join(" ", $fixed_styles),
+  );
+  
+  // add the children
+  $fieldset['collapse_text_contents'] = array(
+    '#type'   => 'markup',
+    '#prefix' => '<div class="collapsed-text">',
+    '#suffix' => '</div>',
+    '#value'  => _collapse_text_process_recurse_tree($item['value']),
+  );
+  
+  return drupal_render($fieldset);
+}
+
+
+/**
+ * add the collapse.js file if needed.
+ *
+ * per #947710, jrockowitz
+ */
+function collapse_text_preprocess_page (&$variables) {
   global $theme;
 
   // Add collapse.js if a collapsible fieldset is found in a region or the main content.
@@ -207,9 +388,12 @@ function collapse_text_preprocess_page(&$variables) {
 /**
  * Implementation of hook_theme().
  */
-function collapse_text_theme($existing, $type, $theme, $path) {
+function collapse_text_theme ($existing, $type, $theme, $path) {
   return array(
     'collapse_text_fieldset' => array(
+      'arguments' => array('element'),
+    ),
+    'collapse_text_form' => array(
       'arguments' => array('element'),
     ),
   );
@@ -228,7 +412,14 @@ function collapse_text_theme($existing, $type, $theme, $path) {
  *
  * @ingroup themeable
  */
-function theme_collapse_text_fieldset($element) {
+function theme_collapse_text_fieldset ($element) {
+  return drupal_render($element);
+}
+
+/**
+ * Theme the outer form. This is required for the fieldset(s) to validate.
+ */
+function theme_collapse_text_form ($element) {
   return drupal_render($element);
 }
 
@@ -248,7 +439,7 @@ function theme_collapse_text_fieldset($element) {
  * @return
  *   The converted string
  */
-function collapse_text_id_safe($string) {
+function collapse_text_id_safe ($string) {
   // Replace with dashes anything that isn't A-Z, numbers, dashes, or underscores.
   $string = strtolower(preg_replace('/[^a-zA-Z0-9-]+/', '-', $string));
 
