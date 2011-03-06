@@ -57,7 +57,7 @@ function _collapse_text_filter_tips ($filter, $format, $long) {
  *
  * Convert any html style tags into bracket style.
  * @todo create a better delimiter...
- * Also, try to regularize title and style to include quotes
+ * Attempt to add quotes where needed for title= and style=
  */
 function _collapse_text_filter_prepare ($text, $filter, $format, $langcode, $cache, $cache_id) {
   // fix any html style (ie, '<>' delimited) tags into our '[]' style delimited tags
@@ -362,7 +362,7 @@ function _collapse_text_process_child_item ($item) {
   foreach (explode(' ' , $style) as $s) {
     $styles[] = drupal_clean_css_identifier($s);
   }
-
+  
   // if a title is not supplied, look in the first child for a header tag
   if (empty($title)) {
     if ($item['value'][0]['type'] == 'text') {
