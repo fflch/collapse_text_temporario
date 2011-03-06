@@ -20,6 +20,7 @@ function collapse_text_filter_info () {
     'title'            => t('Collapsible text blocks'),
     'description'      => t('Allows the creation of collapsing blocks of text'),
     'tips callback'    => '_collapse_text_filter_tips',
+    'prepare callback' => '_collapse_text_filter_prepare',
     'process callback' => '_collapse_text_filter_process',
     'cache'            => TRUE,
   );
@@ -49,6 +50,62 @@ function _collapse_text_filter_tips ($filter, $format, $long) {
   else {
     return t('Use "[collapse] and [/collapse] to create collapsbile text blocks. [collapse collapsed] will start with the block closed.'); 
   }
+}
+
+/**
+ * Implements hook_filter_FILTER_prepare().
+ *
+ * Convert any html style tags into bracket style.
+ * @todo create a better delimiter...
+ * Also, try to regularize title and style to include quotes
+ */
+function _collapse_text_filter_prepare ($text, $filter, $format, $langcode, $cache, $cache_id) {
+  // fix any html style (ie, '<>' delimited) tags into our '[]' style delimited tags
+  $text = preg_replace(
+    '/<(\/?collapse[^>]*)>/i',
+    '[$1]',
+    $text
+  );
+  
+  $text = preg_replace_callback(
+    '/\[collapse[^\]]*\]/i',
+    '_collapse_text_filter_prepare_regex_callback',
+    $text
+  );
+  
+  return $text;
+}
+
+/**
+ * callback function for the prepare replacement.
+ * attempt to clean up poorly formatted tags
+ */
+function _collapse_text_filter_prepare_regex_callback ($matches) {
+  $tag = $matches[0];
+  
+  // fix the collapsed element
+  $tag = preg_replace(
+    '/ collapsed( |\])/i',
+    ' collapsed="collapsed"$1',
+    $tag
+  );
+  
+  // fix the style element
+  $tag = preg_replace(
+    '/ style=([^"].*?)(?= collapsed=| title=|\])/i',
+    ' style="$1"',
+    $tag
+  );
+  
+  // fix the title element
+  // not sufficient if title includes double-quotes
+  $tag = preg_replace(
+    '/ title=([^"].*?)(?= collapsed=| style=|\])/i',
+    ' title="$1"',
+    $tag
+  );
+  
+  return $tag;
 }
 
 /**
@@ -277,13 +334,18 @@ function _collapse_text_process_text_item ($item) {
  */
 function _collapse_text_process_child_item ($item) {
   
-  // parse the tag into parts
-  preg_match('/\[collapse( collapsed)?(?: style=("[^\"]*"))?(?: title=("[^\"]*"))?\]/', $item['tag'], $tag_matches);
-  $tag_matches = array_slice(array_merge($tag_matches, array('','','','')), 0, 4); // make sure the array is long enough
+  // translate the "tag" into a proper tag, and then parse it
+  // as an xml tag; this is more robust than the previous method
+  $tag = preg_replace(
+    array('/^\[/', '/ collapsed( |\])/',           '/\]$/'),
+    array('<',     ' collapsed="collapsed"\1', '/>'),
+    $item['tag']
+  );
+  $xmltag = simplexml_load_string($tag);
   
-  $collapsed = ($tag_matches[1] == ' collapsed');      
-  $style     = trim($tag_matches[2]);
-  $title     = trim($tag_matches[3]);
+  $collapsed = ($xmltag['collapsed'] == 'collapsed');
+  $style     = trim($xmltag['style']);
+  $title     = htmlentities(trim($xmltag['title']));
   
   // set up the styles array. We need to include the 'collapsible' and 'collapsed'
   // classes ourself, because this is no longer done by the theme system.
@@ -294,12 +356,6 @@ function _collapse_text_process_child_item ($item) {
     $styles[] = 'collapsed'; 
   }
   
-  // clean up quotes on the style item
-  if (!empty($style)) {
-    // remove any leading and trailing quotes
-    $style = preg_replace('/^["\']*/', '', $style);
-    $style = preg_replace('/["\']*$/', '', $style);
-  }
   // change the style item into an array
   // older versions used a custom safe id function, but
   // I've gone to using the core Drupal function.
@@ -307,13 +363,6 @@ function _collapse_text_process_child_item ($item) {
     $styles[] = drupal_clean_css_identifier($s);
   }
 
-  // clean up quotes on the title item
-  if (!empty($title)) {
-    // remove any leading and trailing quotes
-    $title = preg_replace('/^["\']*/', '', $title);
-    $title = preg_replace('/["\']*$/', '', $title);
-  }
-  
   // if a title is not supplied, look in the first child for a header tag
   if (empty($title)) {
     if ($item['value'][0]['type'] == 'text') {

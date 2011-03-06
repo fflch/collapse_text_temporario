@@ -16,7 +16,7 @@ If there is no such tag found, the title will default to an
 explanatory text title.
 
 You may also put a "style" attribute into the collapse tag (it should
-come before the "title" attribute, however.  This style is inserted as
+come before the "title" attribute, however).  This style is inserted as
 a class into the fieldset, allowing sites to have different fieldsets
 with different semantic meanings.
 
