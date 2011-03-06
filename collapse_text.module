@@ -83,6 +83,13 @@ function _collapse_text_filter_prepare ($text, $filter, $format, $langcode, $cac
 function _collapse_text_filter_prepare_regex_callback ($matches) {
   $tag = $matches[0];
   
+  // allow the [collapsed] open tag
+  $tag = preg_replace(
+    '/^\[(collapsed(?: |\]))/i',
+    '[collapse $1',
+    $tag
+  );
+  
   // fix the collapsed element
   $tag = preg_replace(
     '/ collapsed( |\])/i',
