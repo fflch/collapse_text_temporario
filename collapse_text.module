@@ -353,7 +353,7 @@ function _collapse_text_process_child_item ($item) {
   // set up the styles array. We need to include the 'collapsible' and 'collapsed'
   // classes ourself, because this is no longer done by the theme system.
   $styles = array();
-  $styles[] = drupal_clean_css_identifier('collapsed-text-fieldset');
+  $styles[] = drupal_clean_css_identifier('collapse-text-fieldset');
   $styles[] = 'collapsible';
   if ($collapsed) {
     $styles[] = 'collapsed'; 
@@ -412,25 +412,25 @@ function _collapse_text_process_child_item ($item) {
  * add the collapse.js file if needed.
  *
  * per #947710, jrockowitz
+ */
 function collapse_text_preprocess_page (&$variables) {
-  global $theme;
-
-  // Add collapse.js if a collapsible fieldset is found in a region or the main content.
-  if ( strpos($variables['scripts'], 'misc/collapse.js') === FALSE ) {
-    $regions = array_keys(system_region_list($theme));
-    $regions[] = 'content';
-    foreach ($regions as $region) {
-      // Using stripos() is much faster then executing preg_match() on every page.
-      if ( (stripos($variables[$region], '<fieldset') !== FALSE)
-           && (stripos($variables[$region], 'collapsible') !== FALSE) ) {
-        drupal_add_js('misc/collapse.js', 'core');
-        $variables['scripts'] = drupal_get_js();
-        return;
-      }
+  // if collapse.js is not already included
+  if ( strpos(drupal_get_js(), 'misc/collapse.js') == FALSE ) {
+    // see if we need to add it
+    $found = FALSE;
+    array_walk_recursive($variables['page'], '_collapse_text_preprocess_page_walk_callback', &$found);
+    if ($found) {
+      // and if we do, then do so...
+      drupal_add_library('system', 'drupal.collapse');
     }
   }
 }
- */
+
+function _collapse_text_preprocess_page_walk_callback ($val, $key, &$found) {
+  if (($key === '#markup') and ( stripos($val, 'collapse-text-fieldset') !== FALSE )) {
+    $found = TRUE;
+  }
+}
 
 /**
  * Implementation of hook_theme().
