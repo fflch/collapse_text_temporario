@@ -424,8 +424,13 @@ function collapse_text_preprocess_page (&$variables) {
   // if collapse.js is not already included
   if ( strpos(drupal_get_js(), 'misc/collapse.js') == FALSE ) {
     // see if we need to add it
+    // ** there is some kind of recursion issue; the mucking with warnings is to
+    // ** suppress a whole lot of notifications...
     $found = FALSE;
+    $error_level = error_reporting();
+    error_reporting($error_level ^ E_WARNING);
     array_walk_recursive($variables['page'], '_collapse_text_preprocess_page_walk_callback', &$found);
+    error_reporting($error_level);
     if ($found) {
       // and if we do, then do so...
       drupal_add_library('system', 'drupal.collapse');
