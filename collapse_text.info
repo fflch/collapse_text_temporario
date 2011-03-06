@@ -1,7 +1,6 @@
-
 name = Collapse Text
-description = "Input filter allowing plain text sections to become collapsible."
-dependencies[] = filter
+description = "Input filter allowing text sections to become collapsible."
+core = 7.x
 package = "Input filters"
-core = 6.x
+dependencies[] = filter
 php = 5.2

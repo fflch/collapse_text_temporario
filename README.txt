@@ -20,6 +20,9 @@ come before the "title" attribute, however.  This style is inserted as
 a class into the fieldset, allowing sites to have different fieldsets
 with different semantic meanings.
 
+Note that in Drupal 7 the title and style options need to be surrounded
+with quotes.
+
 You may also override theme_collapse_text_fieldset() if you want to do
 custom theming.
 

@@ -11,71 +11,56 @@
  */
 
 /**
- * Implementation of hook_filter_tips().
+ * Implements hook_filter_info().
  */
-function collapse_text_filter_tips ($delta, $format, $long = false) {
+function collapse_text_filter_info () {
+  $filters = array();
+  
+  $filters['collapse_text_filter'] = array(
+    'title'            => t('Collapsible text blocks'),
+    'description'      => t('Allows the creation of collapsing blocks of text'),
+    'tips callback'    => '_collapse_text_filter_tips',
+    'process callback' => '_collapse_text_filter_process',
+    'cache'            => TRUE,
+  );
+  
+  return $filters;
+}
+
+/**
+ * Implements hook_filter_FILTER_tips().
+ */
+function _collapse_text_filter_tips ($filter, $format, $long) {
   if ($long) {
-    return t('Enclose sections of text in [collapse] and [/collapse] to '
-      + 'turn them into collapsible sections.  If you use [collapse collapsed] '
-      + 'and [/collapse], the section will start out collapsed. You may '
-      + 'specify a title with [collapse title=some title] '
-      + '(or [collapse collapsed title=some title]). If no title is specified, '
-      + 'the title will be taken from the first header '
-      + '(&lt;h1&gt;, &lt;h2&gt;, &lt;h3&gt;, ...) found. In the absence of a '
-      + 'header, a default title is used.');
+    return t('
+      Blocks of text surrounded with [collapse] and [/collapse] will be turned
+      into collapsible sections. If you start with [collapse collapsed], the
+      section will default the collapsed. If you wish, you may specify a title
+      using [collapse title="your title here"] (or [collapse collapsed title="your title here"]).
+      If no title is specified, the title will be set to the text of the first
+      header (&lt;h1&gt;, etc.). In the absence of a header, a default title will
+      be used. For theming uses, you may optionally specify a set of classes to
+      be added to the section by using [collapse style="classes here"]. The order
+      of the options must be [collapse collapsed style="classes" title="title"].
+      Any of the options may be omitted, but the order must be the same. Note that
+      styles and the title must be enclosed in quotes.
+    ');
   }
   else {
-    return t('Make collapsible text blocks using [collapse] and [/collapse].');
+    return t('Use "[collapse] and [/collapse] to create collapsbile text blocks. [collapse collapsed] will start with the block closed.'); 
   }
 }
 
 /**
- * Implementation of hook_filter().
- */
-function collapse_text_filter ($op, $delta = 0, $format = -1, $text = '') {
-  switch ($op) {
-    case 'list':
-      return array(
-        0 => t('Collapse text')
-      );
-      break;
-      
-    case 'description':
-      return t('Make collapsing text sections');
-      break;
-    
-    case 'settings':
-      // This filter has no user settings.
-      break;
-    
-    case 'no cache':
-      return FALSE;
-      break;
-    
-    case 'prepare':
-      return $text;
-      break;
-      
-    case 'process':
-      return collapse_text_process($text);
-      break;
-    
-    default:
-      return $text;
-      break;
-  }
-}
-
-/**
- * Implementation of hook_filter($op='process').
+ * Implements hook_filter_FILTER_process().
  *
- * Earlier versions of this were done with a regular expression, but that
- * was proving complicated. This version uses its own "parser" to process the text.
+ * This function uses a pseudo-"parser". Earlier versions used a
+ * (very complex) regular expression, but I think this verion will
+ * work better and have fewer memory issues.
  */
-function collapse_text_process ($text) {
-  $matches = array();
-  
+function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cache, $cache_id) {
   // find all of the collapse tags and their location in the string
+  $matches = array();
   $regex = '/
     (?<!\\\\)     # not proceeded by a backslash
     \[            # opening bracket
@@ -90,6 +75,7 @@ function collapse_text_process ($text) {
   $levels = array();
   $curr_level = 0;
   foreach ($matches[0] as $item) {
+    // determine whether this is an open or close tag
     $type = 'unknown';
     if (substr($item[0], 0, 9) == '[collapse') {
       $type = 'start';
@@ -97,6 +83,9 @@ function collapse_text_process ($text) {
     elseif (substr($item[0], 0, 10) == '[/collapse') {
       $type = 'end';
     }
+    
+    // note that the level of an open tag is incremented before we save
+    // its information, while the level of a close tag in decremented after
     
     if ($type == 'start') {
       $curr_level++;
@@ -120,22 +109,20 @@ function collapse_text_process ($text) {
     // turn the levels and the string into a structured tree
     $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
     
-    // take the tree and turn it back into a string
-    $text = _collapse_text_process_recurse_tree($tree);
-    
+    // take the tree, and turn it into FAPI elements, then embed
+    // them in a form
     // see #634666, per deviantintegral
     // @todo is there a problem with using the form #type?
     // if so, change the theme function to just return <form>$text</form>
     $form = array(
       '#type'  => 'form',
       '#theme' => 'collapse_text_form',
-      'collapsed_internal_text' => array(
-        '#type'  => 'markup',
-        '#value' => $text,
-      ),
+      'collapsed_internal_text' => _collapse_text_process_recurse_tree($tree),
     );
     
+    // render the form back to a string
     $text = drupal_render($form);
+    drupal_add_library('system', 'drupal.collapse');
   }
   
   return $text;
@@ -256,7 +243,7 @@ function _collapse_text_process_recurse_tree ($tree) {
     }
   }
   
-  return join($parts);
+  return $parts;
 }
 
 /**
@@ -265,7 +252,8 @@ function _collapse_text_process_recurse_tree ($tree) {
 function _collapse_text_process_text_item ($item) {
 
   // remove any leftover [collapse] or [/collapse] tags, such as might be caused by the teaser
-  // leaving out the closing tag
+  // leaving out the closing tag. Note that a backslash before the collapse tag will act
+  // as an escape.
   $item = preg_replace('/(?<!\\\\)\[\/?collapse[^\]]*\]/', '', $item);
 
   // remove the first backslash before any collapse tags. This allows collapse tags to be
@@ -278,28 +266,48 @@ function _collapse_text_process_text_item ($item) {
   $item = preg_replace('/^<\/p>/', '', $item); // close paragraph right at the start
   $item = preg_replace('/<p(?:\s[^>]*)?>$/', '', $item); // open paragraph right at the end
   
-  return $item;
+  return array(
+    '#type'   => 'markup',
+    '#markup' => $item,
+  );
 }
 
 /**
  * process a child item.
  */
 function _collapse_text_process_child_item ($item) {
-
+  
   // parse the tag into parts
-  $tag_matches = array();
-  preg_match('/\[collapse( collapsed)?(?: style=([^\]]*))?(?: title=([^\]]*))?\]/', $item['tag'], $tag_matches);
+  preg_match('/\[collapse( collapsed)?(?: style=("[^\"]*"))?(?: title=("[^\"]*"))?\]/', $item['tag'], $tag_matches);
+  $tag_matches = array_slice(array_merge($tag_matches, array('','','','')), 0, 4); // make sure the array is long enough
   
   $collapsed = ($tag_matches[1] == ' collapsed');      
   $style     = trim($tag_matches[2]);
   $title     = trim($tag_matches[3]);
   
-  // clean up quotes on the title and style items
+  // set up the styles array. We need to include the 'collapsible' and 'collapsed'
+  // classes ourself, because this is no longer done by the theme system.
+  $styles = array();
+  $styles[] = drupal_clean_css_identifier('collapsed-text-fieldset');
+  $styles[] = 'collapsible';
+  if ($collapsed) {
+    $styles[] = 'collapsed'; 
+  }
+  
+  // clean up quotes on the style item
   if (!empty($style)) {
     // remove any leading and trailing quotes
     $style = preg_replace('/^["\']*/', '', $style);
     $style = preg_replace('/["\']*$/', '', $style);
   }
+  // change the style item into an array
+  // older versions used a custom safe id function, but
+  // I've gone to using the core Drupal function.
+  foreach (explode(' ' , $style) as $s) {
+    $styles[] = drupal_clean_css_identifier($s);
+  }
+
+  // clean up quotes on the title item
   if (!empty($title)) {
     // remove any leading and trailing quotes
     $title = preg_replace('/^["\']*/', '', $title);
@@ -310,8 +318,9 @@ function _collapse_text_process_child_item ($item) {
   if (empty($title)) {
     if ($item['value'][0]['type'] == 'text') {
       $h_matches = array();
-      preg_match('/(<h\d[^>]*>(.+?)<\/h\d>)/smi', $item['value'][0]['value'], $h_matches);
-      $title = strip_tags($h_matches[2]);
+      if (preg_match('/(<h\d[^>]*>(.+?)<\/h\d>)/smi', $item['value'][0]['value'], $h_matches)) {
+        $title = strip_tags($h_matches[2]);
+      }
       
       // if we get the title from the first header tag, we should remove it from
       // the text so that it isn't repeated.
@@ -331,33 +340,19 @@ function _collapse_text_process_child_item ($item) {
   // per #634666, deviantintegral, although not including the form tag, as we allow nesting.
   $fieldset = array(
     '#type'        => 'fieldset',
-    '#title'       => $title,
-    '#collapsible' => TRUE,
-    '#collapsed'   => $collapsed,
     '#theme'       => 'collapse_text_fieldset',
-  );
-  
-  // clean up any styles provided, and add our own class
-  $fixed_styles = array('collapsed-text-fieldset');
-  if (!empty($style)) {
-    $styles = explode(' ', $style);
-    foreach($styles as $s) {
-      $fixed_styles[] = collapse_text_id_safe($s);
-    }
-  }
-  $fieldset['#attributes'] = array(
-    'class' => join(" ", $fixed_styles),
+    '#title'       => $title,
+    '#collapsible' => TRUE,         // not actually used, but here for correctness
+    '#collapsed'   => $collapsed,   // not actually used, but here for correctness
+    '#attributes'  => array('class' => $styles),
   );
   
   // add the children
-  $fieldset['collapse_text_contents'] = array(
-    '#type'   => 'markup',
-    '#prefix' => '<div class="collapsed-text">',
-    '#suffix' => '</div>',
-    '#value'  => _collapse_text_process_recurse_tree($item['value']),
-  );
+  $fieldset['collapse_text_contents'] = _collapse_text_process_recurse_tree($item['value']);
+  $fieldset['collapse_text_contents']['#prefix'] = '<div class="collapsed-text">';
+  $fieldset['collapse_text_contents']['#suffix'] = '</div>';
   
-  return drupal_render($fieldset);
+  return $fieldset;
 }
 
 
@@ -365,7 +360,6 @@ function _collapse_text_process_child_item ($item) {
  * add the collapse.js file if needed.
  *
  * per #947710, jrockowitz
- */
 function collapse_text_preprocess_page (&$variables) {
   global $theme;
 
@@ -384,6 +378,7 @@ function collapse_text_preprocess_page (&$variables) {
     }
   }
 }
+ */
 
 /**
  * Implementation of hook_theme().
@@ -391,10 +386,10 @@ function collapse_text_preprocess_page (&$variables) {
 function collapse_text_theme ($existing, $type, $theme, $path) {
   return array(
     'collapse_text_fieldset' => array(
-      'arguments' => array('element'),
+      'render element' => 'element',
     ),
     'collapse_text_form' => array(
-      'arguments' => array('element'),
+      'render element' => 'element',
     ),
   );
 }
@@ -413,39 +408,12 @@ function collapse_text_theme ($existing, $type, $theme, $path) {
  * @ingroup themeable
  */
 function theme_collapse_text_fieldset ($element) {
-  return drupal_render($element);
+  return drupal_render_children($element['element']);
 }
 
 /**
  * Theme the outer form. This is required for the fieldset(s) to validate.
  */
 function theme_collapse_text_form ($element) {
-  return drupal_render($element);
-}
-
-/**
- * Converts a string to a suitable html ID attribute.
- * Copied from zen_id_safe() in the Zen theme.
- *
- * http://www.w3.org/TR/html4/struct/global.html#h-7.5.2 specifies what makes a
- * valid ID attribute in HTML. This function:
- *
- * - Ensure an ID starts with an alpha character by optionally adding an 'id'.
- * - Replaces any character except alphanumeric characters with dashes.
- * - Converts entire string to lowercase.
- *
- * @param $string
- *   The string
- * @return
- *   The converted string
- */
-function collapse_text_id_safe ($string) {
-  // Replace with dashes anything that isn't A-Z, numbers, dashes, or underscores.
-  $string = strtolower(preg_replace('/[^a-zA-Z0-9-]+/', '-', $string));
-
-  // If the first character is not a-z, add 'id' in front.
-  if (!ctype_lower($string{0})) { // Don't use ctype_alpha since its locale aware.
-    $string = 'id' . $string;
-  }
-  return $string;
+  return drupal_render_children($element['element']);
 }
