@@ -323,6 +323,9 @@ function _collapse_text_process_text_item ($item) {
   $item = preg_replace('/^<\/p>/', '', $item); // close paragraph right at the start
   $item = preg_replace('/<p(?:\s[^>]*)?>$/', '', $item); // open paragraph right at the end
   
+  // clear out cruft introduced by the html line ending filter
+  $item = preg_replace('/^<br ?\/?>/', '', $item);
+  
   return array(
     '#type'   => 'markup',
     '#markup' => $item,
