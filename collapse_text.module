@@ -18,7 +18,7 @@ function collapse_text_filter_info () {
   
   $filters['collapse_text_filter'] = array(
     'title'            => t('Collapsible text blocks'),
-    'description'      => t('Allows the creation of collapsing blocks of text'),
+    'description'      => t('Allows the creation of collapsing blocks of text. This filter must be after the "Limit allowed HTML tags" filter, and should be after the "Convert line breaks into HTML" filter.'),
     'tips callback'    => '_collapse_text_filter_tips',
     'prepare callback' => '_collapse_text_filter_prepare',
     'process callback' => '_collapse_text_filter_process',
@@ -33,22 +33,20 @@ function collapse_text_filter_info () {
  */
 function _collapse_text_filter_tips ($filter, $format, $long) {
   if ($long) {
-    return t('
-      Blocks of text surrounded with [collapse] and [/collapse] will be turned
-      into collapsible sections. If you start with [collapse collapsed], the
-      section will default the collapsed. If you wish, you may specify a title
-      using [collapse title="your title here"] (or [collapse collapsed title="your title here"]).
-      If no title is specified, the title will be set to the text of the first
-      header (&lt;h1&gt;, etc.). In the absence of a header, a default title will
-      be used. For theming uses, you may optionally specify a set of classes to
-      be added to the section by using [collapse style="classes here"]. The order
-      of the options must be [collapse collapsed style="classes" title="title"].
-      Any of the options may be omitted, but the order must be the same. Note that
-      styles and the title must be enclosed in quotes.
-    ');
+    return t(
+        '<p>You may surround a section of text with "[collapse]" and "[/collapse]" to it into a collapsible section.</p>'
+      . '<p>You may use "[collapse]" tags within other "[collapse]" tags for nested collapsing sections.</p>'
+      . '<p>If you start with "[collapsed]" or "[collapse collapsed]", the section will default to a collapsed state.</p>'
+      . '<p>You may specify a title for the section in two ways. You may add a "title=" parameter to the opening tag, such as "[collapse title=&lt;your title here&gt;]". In this case, you should surround the title with double-quotes. If you need to include double-quotes in the title, use the html entity "&amp;quot;". For example: \'[collapse title="&amp;quot;Once upon a time&amp;quot;"]\'. If a title is not specified in the "[collapse]" tag, the title will be taken from the first heading found inside the section. A heading is specified using the "&lt;hX&gt;" html tag, where X is a number from 1-6. The heading will be removed from the section in order to prevent duplication. If a title is not found using these two methods, a default title will be supplied.</p>'
+      . '<p>For advanced uses, you may also add a "class=" option to specify CSS classes to be added to the section. The CSS classes should be surrounded by double-quotes, and separated by spaces; e.g. \'[collapse class="class1 class2"]\'.</p>'
+      . '<p>You may combine these options in (almost) any order. The "collapsed" option should always come first; things will break if it comes after "title=" or "style=". If you need to have it come after the other options, you must specify it as \'collapsed="collapsed"\'; e.g. \'[collapse title="foo" collapsed="collapsed"]\'.</p>'
+      . '<p>If you wish to put the string "[collapse" into the document, you will need to prefix it with a backslash ("\\"). The first backslash before any instance of "[collapse" or "[/collapse" will be removed, all others will remain. Thus, if you want to display "[collapse stuff here", you should enter "\\[collapse stuff here". If you wish to display "\\[collapse other stuff", you will need to put in "\\\\[collapse other stuff". If you prefix three backslashes, two will be displayed, etc.</p>'
+      . '<p>If you prefer, you can use angle brackets ("&lt;&gt;") instead of straight brackets ("[]"). This module will find any instance of "&lt;collapse" and change it to "[collapse" (also fixing the end of the tags and the closing tags).</p>'
+      . '<p>This module supports some historical varients of the tag as well. The following are <strong>not</strong> recommended for any new text, but are left in place so that old uses still work. The "class=" option used to called "style=", and "style=" will be changed into "class=". If you don\'t put a double-quote immediately after "class=", everything up to the end of the tag or the string "title=" will be interpreted as the class string. Similarly, if you don\'t have a double-quote immediately following "title=", everything up to the end of the tag will be used as the title. Note that in this format, "style=" <em>must</em> preceed "title=".</p>'
+    );
   }
   else {
-    return t('Use "[collapse] and [/collapse] to create collapsbile text blocks. [collapse collapsed] will start with the block closed.'); 
+    return t('Use [collapse] and [/collapse] to create collapsbile text blocks. [collapse collapsed] or [collapsed] will start with the block closed.'); 
   }
 }
 
@@ -62,13 +60,13 @@ function _collapse_text_filter_tips ($filter, $format, $long) {
 function _collapse_text_filter_prepare ($text, $filter, $format, $langcode, $cache, $cache_id) {
   // fix any html style (ie, '<>' delimited) tags into our '[]' style delimited tags
   $text = preg_replace(
-    '/<(\/?collapse[^>]*)>/i',
+    '/(?<!\\\\)<(\/?collapse[^>]*)>/i',
     '[$1]',
     $text
   );
   
   $text = preg_replace_callback(
-    '/\[collapse[^\]]*\]/i',
+    '/(?<!\\\\)\[collapse[^\]]*\]/i',
     '_collapse_text_filter_prepare_regex_callback',
     $text
   );
@@ -92,22 +90,27 @@ function _collapse_text_filter_prepare_regex_callback ($matches) {
   
   // fix the collapsed element
   $tag = preg_replace(
-    '/ collapsed( |\])/i',
-    ' collapsed="collapsed"$1',
+    '/^\[collapse collapsed( |\])/i',
+    '[collapse collapsed="collapsed"$1',
     $tag
   );
   
-  // fix the style element
+  // fix the style element. going forward, we prefer "class=".
   $tag = preg_replace(
     '/ style=([^"].*?)(?= collapsed=| title=|\])/i',
-    ' style="$1"',
+    ' class="$1"',
+    $tag
+  );
+  $tag = preg_replace(
+    '/ style="/i',
+    ' class="',
     $tag
   );
   
   // fix the title element
   // not sufficient if title includes double-quotes
   $tag = preg_replace(
-    '/ title=([^"].*?)(?= collapsed=| style=|\])/i',
+    '/ title=([^"].*?)(?= collapsed=| class=|\])/i',
     ' title="$1"',
     $tag
   );
@@ -331,7 +334,9 @@ function _collapse_text_process_text_item ($item) {
   $item = preg_replace('/<p(?:\s[^>]*)?>$/', '', $item); // open paragraph right at the end
   
   // clear out cruft introduced by the html line ending filter
-  $item = preg_replace('/^<br ?\/?>/', '', $item);
+  // these are probably more controversial, since they may actually be intended...
+  $item = preg_replace('/^<br ?\/?>/', '', $item); // <br> at the very start
+  $item = preg_replace('/<br ?\/?>$/', '', $item); // <br> at the very end
   
   return array(
     '#type'   => 'markup',
@@ -347,30 +352,30 @@ function _collapse_text_process_child_item ($item) {
   // translate the "tag" into a proper tag, and then parse it
   // as an xml tag; this is more robust than the previous method
   $tag = preg_replace(
-    array('/^\[/', '/ collapsed( |\])/',           '/\]$/'),
-    array('<',     ' collapsed="collapsed"\1', '/>'),
+    array('/^\[/', '/\]$/'),
+    array('<',     '/>'),
     $item['tag']
   );
   $xmltag = simplexml_load_string($tag);
   
   $collapsed = ($xmltag['collapsed'] == 'collapsed');
-  $style     = trim($xmltag['style']);
+  $class     = trim($xmltag['class']);
   $title     = htmlentities(trim($xmltag['title']));
   
   // set up the styles array. We need to include the 'collapsible' and 'collapsed'
   // classes ourself, because this is no longer done by the theme system.
-  $styles = array();
-  $styles[] = drupal_clean_css_identifier('collapse-text-fieldset');
-  $styles[] = 'collapsible';
+  $classes = array();
+  $classes[] = drupal_clean_css_identifier('collapse-text-fieldset');
+  $classes[] = 'collapsible';
   if ($collapsed) {
-    $styles[] = 'collapsed'; 
+    $classes[] = 'collapsed'; 
   }
   
   // change the style item into an array
   // older versions used a custom safe id function, but
   // I've gone to using the core Drupal function.
-  foreach (explode(' ' , $style) as $s) {
-    $styles[] = drupal_clean_css_identifier($s);
+  foreach (explode(' ' , $class) as $s) {
+    $classes[] = drupal_clean_css_identifier($s);
   }
   
   // if a title is not supplied, look in the first child for a header tag
@@ -403,10 +408,10 @@ function _collapse_text_process_child_item ($item) {
     '#title'       => $title,
     '#collapsible' => TRUE,         // not actually used, but here for correctness
     '#collapsed'   => $collapsed,   // not actually used, but here for correctness
-    '#attributes'  => array('class' => $styles),
+    '#attributes'  => array('class' => $classes),
   );
   
-  // add the children
+  // add the children, enclosed in a div so that they don't escape from the fieldsets
   $fieldset['collapse_text_contents'] = _collapse_text_process_recurse_tree($item['value']);
   $fieldset['collapse_text_contents']['#prefix'] = '<div class="collapsed-text">';
   $fieldset['collapse_text_contents']['#suffix'] = '</div>';
@@ -418,15 +423,20 @@ function _collapse_text_process_child_item ($item) {
 /**
  * add the collapse.js file if needed.
  *
- * per #947710, jrockowitz
+ * This is probably the wrong method to take. This may be more intensive than just
+ * adding the library to everything, and may mess with aggregated files (?).
+ *
+ * I have no idea what the right thing to do here is.
+ *
+ * based on #947710, jrockowitz
  */
 function collapse_text_preprocess_page (&$variables) {
   // if collapse.js is not already included
   if ( strpos(drupal_get_js(), 'misc/collapse.js') == FALSE ) {
     // see if we need to add it
-    // ** there is some kind of recursion issue; the mucking with warnings is to
-    // ** suppress a whole lot of notifications...
     $found = FALSE;
+                            // ** there is some kind of recursion issue; the mucking with warnings is to
+                            // ** suppress a whole lot of notifications...
     $error_level = error_reporting();
     error_reporting($error_level ^ E_WARNING);
     array_walk_recursive($variables['page'], '_collapse_text_preprocess_page_walk_callback', &$found);
