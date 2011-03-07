@@ -301,14 +301,21 @@ function _collapse_text_process_recurse_levels ($string, $string_start, $string_
  */
 function _collapse_text_process_recurse_tree ($tree) {
   $parts = array();
+  $weight = 0; // we use $weight to make sure elements are displayed in the correct order
   
   foreach ($tree as $item) {
     // iterate over the tree
     if ($item['type'] == 'text') {
-      $parts[] = _collapse_text_process_text_item($item['value']);
+      $part = _collapse_text_process_text_item($item['value']);
+      if (isset($part)) {
+        $part['#weight'] = $weight++;
+        $parts[] = $part;
+      }
     }
     elseif ($item['type'] = 'child') {
-      $parts[] = _collapse_text_process_child_item($item);
+      $part = _collapse_text_process_child_item($item);
+      $part['#weight'] = $weight++;
+      $parts[] = $part;
     }
   }
   
@@ -340,10 +347,18 @@ function _collapse_text_process_text_item ($item) {
   $item = preg_replace('/^<br ?\/?>/', '', $item); // <br> at the very start
   $item = preg_replace('/<br ?\/?>$/', '', $item); // <br> at the very end
   
-  return array(
-    '#type'   => 'markup',
-    '#markup' => $item,
-  );
+  // only return a value if there is something besides whitespace.
+  if (preg_match('/\S/', $item)) {
+    return array(
+      '#type'   => 'markup',
+      '#markup' => $item,
+      '#prefix' => '<div class="collapsed-text">',
+      '#suffix' => '</div>',
+    );
+  }
+  else {
+    return NULL;
+  }
 }
 
 /**
@@ -411,12 +426,9 @@ function _collapse_text_process_child_item ($item) {
     '#collapsible' => TRUE,         // not actually used, but here for correctness
     '#collapsed'   => $collapsed,   // not actually used, but here for correctness
     '#attributes'  => array('class' => $classes),
+    
+    'collapse_text_contents' => _collapse_text_process_recurse_tree($item['value']),
   );
-  
-  // add the children, enclosed in a div so that they don't escape from the fieldsets
-  $fieldset['collapse_text_contents'] = _collapse_text_process_recurse_tree($item['value']);
-  $fieldset['collapse_text_contents']['#prefix'] = '<div class="collapsed-text">';
-  $fieldset['collapse_text_contents']['#suffix'] = '</div>';
   
   return $fieldset;
 }
