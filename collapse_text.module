@@ -1,6 +1,5 @@
 <?php
 
-
 /**
  * @file
  * collapse_text is an input filter that allows text to be collapsible

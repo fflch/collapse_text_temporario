@@ -4,3 +4,5 @@ core = 7.x
 package = "Input filters"
 dependencies[] = filter
 php = 5.2
+
+files[] = collapse_text.test
