@@ -126,6 +126,41 @@ function _collapse_text_filter_prepare_regex_callback ($matches) {
  */
 function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cache, $cache_id) {
   // find all of the collapse tags and their location in the string
+  $tags = _collapse_text_find_tags($text);
+  
+  // determine the level of nesting for each element.
+  $levels = _collapse_text_find_levels($tags);
+  
+  // process the text if there are any collapse tags...
+  if (count($levels)) {
+    // turn the levels and the string into a structured tree
+    $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
+    
+    // take the tree, and turn it into FAPI elements, then embed
+    // them in a form
+    // see #634666, per deviantintegral
+    // @todo is there a problem with using the form #type?
+    // if so, change the theme function to just return <form>$text</form>
+    $form = array(
+      '#type'  => 'form',
+      '#theme' => 'collapse_text_form',
+      'collapsed_internal_text' => _collapse_text_process_recurse_tree($tree),
+    );
+    
+    // render the form back to a string
+    $text = drupal_render($form);
+    drupal_add_library('system', 'drupal.collapse');
+      // by adding this here, our preprocess function doesn't need to actually
+      // recurse through the entire page array. This may be faster...
+  }
+  
+  return $text;
+}
+
+/**
+ * retrieve the location of the tags
+ */
+function _collapse_text_find_tags ($text) {
   $matches = array();
   $regex = '/
     (?<!\\\\)     # not proceeded by a backslash
@@ -137,10 +172,16 @@ function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cac
   /smx';
   preg_match_all($regex, $text, $matches, PREG_OFFSET_CAPTURE);
   
-  // determine the level of nesting for each element.
+  return $matches;
+}
+
+/**
+ * turn the locations into a set of levels
+ */
+function _collapse_text_find_levels ($tags) {
   $levels = array();
   $curr_level = 0;
-  foreach ($matches[0] as $item) {
+  foreach ($tags[0] as $item) {
     // determine whether this is an open or close tag
     $type = 'unknown';
     if (substr($item[0], 0, 9) == '[collapse') {
@@ -170,30 +211,7 @@ function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cac
     }
   }
   
-  // process the text if there are any collapse tags...
-  if (count($levels)) {
-    // turn the levels and the string into a structured tree
-    $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
-    
-    // take the tree, and turn it into FAPI elements, then embed
-    // them in a form
-    // see #634666, per deviantintegral
-    // @todo is there a problem with using the form #type?
-    // if so, change the theme function to just return <form>$text</form>
-    $form = array(
-      '#type'  => 'form',
-      '#theme' => 'collapse_text_form',
-      'collapsed_internal_text' => _collapse_text_process_recurse_tree($tree),
-    );
-    
-    // render the form back to a string
-    $text = drupal_render($form);
-    drupal_add_library('system', 'drupal.collapse');
-      // by adding this here, our preprocess function doesn't need to actually
-      // recurse through the entire page array. This may be faster...
-  }
-  
-  return $text;
+  return $levels;
 }
 
 /**
