@@ -172,7 +172,7 @@ function _collapse_text_find_tags ($text) {
   /smx';
   preg_match_all($regex, $text, $matches, PREG_OFFSET_CAPTURE);
   
-  return $matches;
+  return $matches[0];
 }
 
 /**
@@ -181,7 +181,7 @@ function _collapse_text_find_tags ($text) {
 function _collapse_text_find_levels ($tags) {
   $levels = array();
   $curr_level = 0;
-  foreach ($tags[0] as $item) {
+  foreach ($tags as $item) {
     // determine whether this is an open or close tag
     $type = 'unknown';
     if (substr($item[0], 0, 9) == '[collapse') {
