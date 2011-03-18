@@ -8,6 +8,11 @@
  * as things come up.
  */
 class CollapseTextTestCase extends DrupalUnitTestCase {
+
+/**
+ * tests to be added:
+ * - test non-ascii titles
+ */
   
   function getInfo () {
     return array(
