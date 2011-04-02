@@ -1,8 +1,8 @@
 name = Collapse Text
 description = "Input filter allowing text sections to become collapsible."
-core = 7.x
 package = "Input filters"
 dependencies[] = filter
+core = 7.x
 php = 5.2
 
 files[] = collapse_text.test
