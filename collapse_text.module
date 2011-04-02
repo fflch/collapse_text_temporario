@@ -41,6 +41,7 @@ function _collapse_text_filter_tips ($filter, $format, $long) {
       . '<p>You may combine these options in (almost) any order. The "collapsed" option should always come first; things will break if it comes after "title=" or "class=". If you need to have it come after the other options, you must specify it as \'collapsed="collapsed"\'; e.g. \'[collapse title="foo" collapsed="collapsed"]\'.</p>'
       . '<p>If you wish to put the string "[collapse" into the document, you will need to prefix it with a backslash ("\\"). The first backslash before any instance of "[collapse" or "[/collapse" will be removed, all others will remain. Thus, if you want to display "[collapse stuff here", you should enter "\\[collapse stuff here". If you wish to display "\\[collapse other stuff", you will need to put in "\\\\[collapse other stuff". If you prefix three backslashes, two will be displayed, etc.</p>'
       . '<p>If you prefer, you can use angle brackets ("&lt;&gt;") instead of straight brackets ("[]"). This module will find any instance of "&lt;collapse" and change it to "[collapse" (also fixing the end of the tags and the closing tags).</p>'
+      . '<p>You may override the settings of the filter on an individual basis using a "[collapse options ...]" tag. The possible options now are \'form="form"\' or \'form="noform"\', and \'default_title="..."\'. For example, \'[collapse options form="noform" default_title="Click me!"]\'. Only the first options tag will be looked at, and the settings apply for the entire text area, not just the "[collapse]" tags following the options tag. Note that surrounding &lt;p&gt; and &lt;br&gt; tags will be removed.</p>'
       . '<p>This module supports some historical variants of the tag as well. The following are <strong>not</strong> recommended for any new text, but are left in place so that old uses still work. The "class=" option used to called "style=", and "style=" will be changed into "class=". If you don\'t put a double-quote immediately after "class=", everything up to the end of the tag or the string "title=" will be interpreted as the class string. Similarly, if you don\'t have a double-quote immediately following "title=", everything up to the end of the tag will be used as the title. Note that in this format, "style=" <em>must</em> precede "title=".</p>'
     );
   }
@@ -59,13 +60,26 @@ function _collapse_text_filter_tips ($filter, $format, $long) {
 function _collapse_text_filter_prepare ($text, $filter, $format, $langcode, $cache, $cache_id) {
   // fix any html style (ie, '<>' delimited) tags into our '[]' style delimited tags
   $text = preg_replace(
-    '/(?<!\\\\)<(\/?collapse[^>]*)>/i',
+    '/(?<!\\\\)     # not preceded by a backslash
+      <             # an open bracket
+      (             # start capture
+        \/?         # optional backslash
+        collapse    # the string collapse
+        [^>]*       # everything up to the closing angle bracket; note that you cannot use one inside the tag!
+      )             # stop capture
+      >             # close bracket
+    /ix',
     '[$1]',
     $text
   );
   
   $text = preg_replace_callback(
-    '/(?<!\\\\)\[collapse[^\]]*\]/i',
+    '/(?<!\\\\)     # not preceded by a backslash
+      \[            # open bracket
+      collapse      # the string collapse
+      [^\]]*        # everything up to a closing straight bracket; note that you cannot use one inside a tag!
+      \]            # closing bracket
+    /ix',
     '_collapse_text_filter_prepare_regex_callback',
     $text
   );
@@ -78,11 +92,18 @@ function _collapse_text_filter_prepare ($text, $filter, $format, $langcode, $cac
  * attempt to clean up poorly formatted tags
  */
 function _collapse_text_filter_prepare_regex_callback ($matches) {
+  // all regexes here are running against an already extracted tag
   $tag = $matches[0];
   
   // allow the [collapsed] open tag
   $tag = preg_replace(
-    '/^\[(collapsed(?: |\]))/i',
+    '/^                  # start of tag
+      \[                 # open bracket
+      (                  # start capture
+        collapsed        # the string collapsed
+        (?: |\])         # either a space or a close bracket
+      )                  # end capture
+    /ix',
     '[collapse $1',
     $tag
   );
@@ -137,7 +158,7 @@ function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cac
     $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels);
     
     // take the tree, and turn it into FAPI elements, then embed
-    // them in a form
+    // them in a form if requested
     // see #634666, per deviantintegral
     // @todo is there a problem with using the form #type?
     // if so, change the theme function to just return <form>$text</form>
@@ -158,10 +179,11 @@ function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cac
 }
 
 /**
- * retrieve the location of the tags
+ * find all of the [collapse...] tags and return an array of their locations
  */
 function _collapse_text_find_tags ($text) {
   $matches = array();
+  
   $regex = '/
     (?<!\\\\)     # not proceeded by a backslash
     \[            # opening bracket
@@ -176,10 +198,11 @@ function _collapse_text_find_tags ($text) {
 }
 
 /**
- * turn the locations into a set of levels
+ * using the locations of the tags, determine what the nesting structure is.
  */
 function _collapse_text_find_levels ($tags) {
   $levels = array();
+  
   $curr_level = 0;
   foreach ($tags as $item) {
     // determine whether this is an open or close tag
@@ -191,8 +214,8 @@ function _collapse_text_find_levels ($tags) {
       $type = 'end';
     }
     
-    // note that the level of an open tag is incremented before we save
-    // its information, while the level of a close tag in decremented after
+    // the level of an open tag is incremented before we save its
+    // information, while the level of a close tag is decremented after
     
     if ($type == 'start') {
       $curr_level++;
@@ -205,7 +228,7 @@ function _collapse_text_find_levels ($tags) {
       'end'   => $item[1] + strlen($item[0]),
       'level' => $curr_level,
     );
-
+    
     if ($type == 'end') {
       $curr_level--;
     }
@@ -227,7 +250,7 @@ function _collapse_text_process_recurse_levels ($string, $string_start, $string_
   $child_end = $string_end;
   $slice_start = -1;
   $slice_end = count($elements);
-
+  
   // find the first start element
   $elt_start_found = FALSE;
   $elt_start = 0;
@@ -286,7 +309,6 @@ function _collapse_text_process_recurse_levels ($string, $string_start, $string_
     }
   }
   
-  
   $parts = array();
   
   // add the text before the opening element
@@ -322,15 +344,16 @@ function _collapse_text_process_recurse_tree ($tree) {
   
   foreach ($tree as $item) {
     // iterate over the tree
+    $part = NULL;
+    
     if ($item['type'] == 'text') {
       $part = _collapse_text_process_text_item($item['value']);
-      if (isset($part)) {
-        $part['#weight'] = $weight++;
-        $parts[] = $part;
-      }
     }
     elseif ($item['type'] = 'child') {
       $part = _collapse_text_process_child_item($item);
+    }
+    
+    if (isset($part)) {
       $part['#weight'] = $weight++;
       $parts[] = $part;
     }
@@ -341,28 +364,30 @@ function _collapse_text_process_recurse_tree ($tree) {
 
 /**
  * process a text item.
+ *
+ * @todo -- deprecate the "collapsed-text" class
  */
 function _collapse_text_process_text_item ($item) {
-
+  
   // remove any leftover [collapse] or [/collapse] tags, such as might be caused by the teaser
   // leaving out the closing tag. Note that a backslash before the collapse tag will act
   // as an escape.
   $item = preg_replace('/(?<!\\\\)\[\/?collapse[^\]]*\]/', '', $item);
-
+  
   // remove the first backslash before any collapse tags. This allows collapse tags to be
   // escaped.
   $item = str_replace(array('\\[collapse', '\\[/collapse'),
                       array('[collapse',   '[/collapse'),
                       $item);
-
+  
   // clear out some miscellaneous tags that are introduced by visual editors...
-  $item = preg_replace('/^<\/p>/', '', $item); // close paragraph right at the start
+  $item = preg_replace('/^<\/p>/', '', $item);           // close paragraph right at the start
   $item = preg_replace('/<p(?:\s[^>]*)?>$/', '', $item); // open paragraph right at the end
   
   // clear out cruft introduced by the html line ending filter
   // these are probably more controversial, since they may actually be intended...
-  $item = preg_replace('/^<br ?\/?>/', '', $item); // <br> at the very start
-  $item = preg_replace('/<br ?\/?>$/', '', $item); // <br> at the very end
+  $item = preg_replace('/^<br ?\/?>/', '', $item);       // <br> at the very start
+  $item = preg_replace('/<br ?\/?>$/', '', $item);       // <br> at the very end
   
   // only return a value if there is something besides whitespace.
   if (preg_match('/\S/', $item)) {
@@ -380,6 +405,8 @@ function _collapse_text_process_text_item ($item) {
 
 /**
  * process a child item.
+ *
+ * @todo -- deprecate the "collapsed-text-fieldset" class
  */
 function _collapse_text_process_child_item ($item) {
   
@@ -423,13 +450,13 @@ function _collapse_text_process_child_item ($item) {
       // if we get the title from the first header tag, we should remove it from
       // the text so that it isn't repeated.
       if (!empty($title)) {
-        $occ = 1;
+        $occ = 1; // this is a hack to only replace the first instance.
         $item['value'][0]['value'] = str_replace($h_matches[0], '', $item['value'][0]['value'], $occ);
       }
     }
   }
   
-  // if still no title, put in some default text
+  // if still no title, put in the default title
   if (empty($title)) {
     $title = t('Use the arrow to expand or collapse this section');
   }
@@ -449,7 +476,6 @@ function _collapse_text_process_child_item ($item) {
   
   return $fieldset;
 }
-
 
 /**
  * add the collapse.js file if needed.
