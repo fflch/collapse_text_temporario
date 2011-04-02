@@ -134,7 +134,12 @@ class CollapseTextTestCase extends DrupalUnitTestCase {
     );
   }
   function prepareWrapper ($text) {
-    return _collapse_text_filter_prepare($text, NULL, NULL, NULL, NULL, NULL);
+    $test_filter = new StdClass();
+    $test_filter->settings = array(
+      'form'          => 1,
+      'default_title' => COLLAPSE_TEXT_DEFAULT_TITLE,
+    );
+    return _collapse_text_filter_prepare($text, $test_filter, NULL, NULL, NULL, NULL);
   }
   
   /**
@@ -143,7 +148,11 @@ class CollapseTextTestCase extends DrupalUnitTestCase {
   function testProcessFunction () {
   }
   function processWrapper ($text) {
-    return _collapse_text_filter_process($text, NULL, NULL, NULL, NULL, NULL);
+    $test_filter->settings = array(
+      'form'          => 1,
+      'default_title' => COLLAPSE_TEXT_DEFAULT_TITLE,
+    );
+    return _collapse_text_filter_process($text, $test_filter, NULL, NULL, NULL, NULL);
   }
   
   /**
