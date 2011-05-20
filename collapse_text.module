@@ -593,27 +593,36 @@ function _collapse_text_process_child_item ($item, $options) {
  *
  * based on #947710, jrockowitz
  */
+// See #1132290 per rzgairin, Miria, JohnDoranNY, jasondgardner, Glottus
+// Use this exception class to indicate that we should add the libraries to the page
+class CollapseTextInPageException extends Exception {}
+
 function collapse_text_preprocess_page (&$variables) {
   // if collapse.js is not already included
   if ( strpos(drupal_get_js(), 'misc/collapse.js') == FALSE ) {
     // see if we need to add it
-    $found = FALSE;
                             // ** there is some kind of recursion issue; the mucking with warnings is to
                             // ** suppress a whole lot of notifications...
     $error_level = error_reporting();
     error_reporting($error_level ^ E_WARNING);
-    array_walk_recursive($variables['page'], '_collapse_text_preprocess_page_walk_callback', &$found);
-    error_reporting($error_level);
-    if ($found) {
+    // the first version of this tried to use a pass-by-reference variable. This is apparently deprecated
+    // in some ways, so this version now uses exceptions to signal a positive feature, which is somewhat
+    // backwards from the way most people think of exceptions.
+    // See #1132290 per rzgairin, Miria, JohnDoranNY, jasondgardner, Glottus
+    try {
+      array_walk_recursive($variables['page'], '_collapse_text_preprocess_page_walk_callback');
+    }
+    catch (CollapseTextInPageException $e) {
       // and if we do, then do so...
       drupal_add_library('system', 'drupal.collapse');
     }
+    error_reporting($error_level);
   }
 }
 
-function _collapse_text_preprocess_page_walk_callback ($val, $key, &$found) {
+function _collapse_text_preprocess_page_walk_callback ($val, $key) {
   if (($key === '#markup') and ( stripos($val, 'collapse-text-fieldset') !== FALSE )) {
-    $found = TRUE;
+    throw new CollapseTextInPageException();
   }
 }
 
