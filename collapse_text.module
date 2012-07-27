@@ -584,46 +584,15 @@ function _collapse_text_process_child_item ($item, $options) {
 }
 
 /**
- * add the collapse.js file if needed.
- *
- * This is probably the wrong method to take. This may be more intensive than just
- * adding the library to everything, and may mess with aggregated files (?).
- *
- * I have no idea what the right thing to do here is.
- *
- * based on #947710, jrockowitz
+ * add the collapse.js file.
+ * in the past, there was a lot of awkward code to try and include this library
+ * conditionally. This was getting really broken, and causing all kinds of weird
+ * errors. This was suggested by jrockowitz in #947710. Since this has caused more
+ * problems than it is worth, I am adopting #1664952 by mstrelan, and just adding
+ * the library. Hopefully this will work better.
  */
-// See #1132290 per rzgairin, Miria, JohnDoranNY, jasondgardner, Glottus
-// Use this exception class to indicate that we should add the libraries to the page
-class CollapseTextInPageException extends Exception {}
-
 function collapse_text_preprocess_page (&$variables) {
-  // if collapse.js is not already included
-  if ( strpos(drupal_get_js(), 'misc/collapse.js') == FALSE ) {
-    // see if we need to add it
-                            // ** there is some kind of recursion issue; the mucking with warnings is to
-                            // ** suppress a whole lot of notifications...
-    $error_level = error_reporting();
-    error_reporting($error_level ^ E_WARNING);
-    // the first version of this tried to use a pass-by-reference variable. This is apparently deprecated
-    // in some ways, so this version now uses exceptions to signal a positive feature, which is somewhat
-    // backwards from the way most people think of exceptions.
-    // See #1132290 per rzgairin, Miria, JohnDoranNY, jasondgardner, Glottus
-    try {
-      array_walk_recursive($variables['page'], '_collapse_text_preprocess_page_walk_callback');
-    }
-    catch (CollapseTextInPageException $e) {
-      // and if we do, then do so...
-      drupal_add_library('system', 'drupal.collapse');
-    }
-    error_reporting($error_level);
-  }
-}
-
-function _collapse_text_preprocess_page_walk_callback ($val, $key) {
-  if (($key === '#markup') and ( stripos($val, 'collapse-text-fieldset') !== FALSE )) {
-    throw new CollapseTextInPageException();
-  }
+  drupal_add_library('system', 'drupal.collapse');
 }
 
 /**
