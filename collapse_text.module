@@ -9,7 +9,8 @@
  * - #233877 requested ability to have nested tags.
  */
 
-define('COLLAPSE_TEXT_DEFAULT_TITLE', t('Use the arrow to expand or collapse this section'));
+// #1245584 per Nikdilis; change default text because arrow isn't actually clickable.
+define('COLLAPSE_TEXT_DEFAULT_TITLE', t('Click here to expand or collapse this section'));
 
 /**
  * Implements hook_filter_info().
