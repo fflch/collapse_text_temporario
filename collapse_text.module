@@ -194,11 +194,10 @@ function _collapse_text_filter_process ($text, $filter, $format, $langcode, $cac
   if (count($levels)) {
     // turn the levels and the string into a structured tree
     $tree = _collapse_text_process_recurse_levels($text, 0, strlen($text), $levels, $options);
-    
-    // take the tree, and turn it into FAPI elements, then embed
-    // them in a form if requested
-    // see #634666, per deviantintegral
-    static $render_number = 1;   // used to generate unique ids to prevent an E_NOTICE
+
+    // Take the tree, and turn it into FAPI elements, then embed them in a form
+    // if requested, see #634666 for more details.
+    $render_number = &drupal_static(__FUNCTION__, 1); // Used to generate unique ids to prevent an E_NOTICE.
     $holder = array();    
     if ($options['form']) {
       $holder = array(
