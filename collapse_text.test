@@ -14,7 +14,7 @@ class CollapseTextTestCase extends DrupalUnitTestCase {
  * - test non-ascii titles
  */
   
-  function getInfo () {
+  public static function getInfo () {
     return array(
       'name'        => t('Collapse Text tests'),
       'description' => t('Tests for the Collapse Text module.'),
