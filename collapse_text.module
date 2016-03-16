@@ -908,3 +908,22 @@ function _collapse_text_html_to_xml_entities ($text) {
   
   return $text;
 }
+
+/**
+ * Implements hook_wysiwyg_plugin().
+ */
+function collapse_text_wysiwyg_plugin($editor) {
+  if ($editor == 'ckeditor') {
+    return array(
+      'collapse_text' => array(
+        'name' => 'collapse_text',
+        'description' => 'Collapse Text - ' . t('Inserts [collapsed][/collapsed] tags'),
+        'path' => drupal_get_path('module', 'collapse_text') . '/wysiwyg/ckeditor/',
+        'load' => TRUE,
+        'buttons' => array(
+          'collapse_text' => 'Insert Collapsible Text',
+        ),
+      ),
+    );
+  }
+}
