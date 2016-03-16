@@ -940,7 +940,7 @@ function collapse_text_wysiwyg_plugin($editor) {
         // A URL to the plugin's homepage.
         'url' => 'http://drupal.org/project/collapse_text',
         // The full path to the native editor plugin, no trailing slash.
-        'path' => drupal_get_path('module', 'collapse_text_wysiwyg') . '/ckeditor-plugins/collapse_text/',
+        'path' => drupal_get_path('module', 'collapse_text') . '/wysiwyg/ckeditor/',
         // A list of buttons provided by this native plugin.
         'buttons' => array(
           'collapse_text' => t('Collapse Text - Insert Collapsible Text tags [collapsed][/collapsed]'),
