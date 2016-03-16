@@ -563,7 +563,7 @@ function _collapse_text_process_child_item ($item, $options) {
   
   // if still no title, put in the default title
   if (empty($title)) {
-    $title = $options['default_title'];
+    $title = t($options['default_title']);
     $classes[] = drupal_clean_css_identifier('collapse-text-default-title');
   }
   
