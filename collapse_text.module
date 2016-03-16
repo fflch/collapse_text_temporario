@@ -910,19 +910,43 @@ function _collapse_text_html_to_xml_entities ($text) {
 }
 
 /**
+ * @file
+ * Provides integration between Collapse Text and Wysiwyg API.
+ */
+
+/**
  * Implements hook_wysiwyg_plugin().
  */
 function collapse_text_wysiwyg_plugin($editor) {
   if ($editor == 'ckeditor') {
+    // Provide support for strings translation: keep them out of plugin file.
+    drupal_add_js(array(
+      'collapse_text' => array(
+        'pluginStrings' => array(
+          'buttonLabel' => t('Insert collapsible text'),
+          'windowLabel' => t('Collapsible text settings'),
+          'titleLabel' => t('Collapsible text title'),
+          'titleValidateError' => t('Collapsible text title should be provided.'),
+          'contentLabel' => t('Collapsible text content'),
+          'contentValidateError' => t('Collapsible text content should be provided.'),
+          'stateLabel' => t('Initially expanded (not collapsed)'),
+          'classesLabel' => t('Optional class'),
+        ),
+      ),
+    ), 'setting');
+
     return array(
       'collapse_text' => array(
-        'name' => 'collapse_text',
-        'description' => 'Collapse Text - ' . t('Inserts [collapsed][/collapsed] tags'),
-        'path' => drupal_get_path('module', 'collapse_text') . '/wysiwyg/ckeditor/',
-        'load' => TRUE,
+        // A URL to the plugin's homepage.
+        'url' => 'http://drupal.org/project/collapse_text',
+        // The full path to the native editor plugin, no trailing slash.
+        'path' => drupal_get_path('module', 'collapse_text_wysiwyg') . '/ckeditor-plugins/collapse_text/',
+        // A list of buttons provided by this native plugin.
         'buttons' => array(
-          'collapse_text' => 'Insert Collapsible Text',
+          'collapse_text' => t('Collapse Text - Insert Collapsible Text tags [collapsed][/collapsed]'),
         ),
+        // Boolean whether the editor needs to load this plugin.
+        'load' => TRUE,
       ),
     );
   }
