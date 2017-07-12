@@ -53,7 +53,7 @@ before the "title=" parameter.
 
 There are two theme functions you can override if you need to.
 
-- `theme_collapse_text_fieldset()` renders the actual fieldset.
+- `theme_collapse_text_details()` renders the actual details.
 - `theme_collapse_text_form()` renders the enclosing form.
 
 N.B. The HTML corrector filter is known to cause collapsible text to

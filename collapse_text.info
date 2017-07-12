@@ -1,9 +1,0 @@
-name = Collapse Text
-description = "Input filter allowing text sections to become collapsible."
-package = "Input filters"
-dependencies[] = filter
-configure = admin/config/content/formats
-core = 7.x
-php = 5.2
-
-files[] = collapse_text.test
