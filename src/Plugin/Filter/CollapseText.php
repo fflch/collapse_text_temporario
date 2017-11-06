@@ -26,19 +26,19 @@ class CollapseText extends FilterBase {
    * {@inheritdoc}
    */
   public function settingsForm(array $form, FormStateInterface $form_state) {
-    $form['default_title'] = array(
+    $form['default_title'] = [
       '#type'          => 'textfield',
       '#title'         => t('Default title'),
-      '#description'   => t('If no title is supplied for a section, use this as the default. This may not be empty. The original default title is "@default_title".', array('@default_title' => COLLAPSE_TEXT_DEFAULT_TITLE)),
+      '#description' => t('If no title is supplied for a section, use this as the default. This may not be empty. The original default title is "@default_title".', ['@default_title' => COLLAPSE_TEXT_DEFAULT_TITLE]),
       '#default_value' => isset($this->settings['default_title']) ? $this->settings['default_title'] : COLLAPSE_TEXT_DEFAULT_TITLE,
       '#required'      => TRUE,
-    );
-    $form['form'] = array(
+    ];
+    $form['form'] = [
       '#type'          => 'checkbox',
       '#title'         => t('Surround text with an empty form tag'),
       '#description'   => t('Collapse text works by generating &lt;details&gt; tags. To validate as proper HTML, these need to be within a &lt;form&gt; tag. This option allows you to prevent the generation of the surrounding form tag. You probably do not want to change this.'),
       '#default_value' => isset($this->settings['form']) ? $this->settings['form'] : 1,
-    );
+    ];
     return $form;
   }
 
@@ -69,8 +69,7 @@ class CollapseText extends FilterBase {
         [^\]]*        # everything up to a closing straight bracket; note that you cannot use one inside a tag!
         \]            # closing bracket
       /ix',
-      array($this, 'filterPrepareRegexCallback'),
-      $text
+      [$this, 'filterPrepareRegexCallback'], $text
     );
     return $text;
   }
@@ -98,21 +97,21 @@ class CollapseText extends FilterBase {
       // them in a form if requested.
       // Used to generate unique ids to prevent an E_NOTICE.
       static $render_number = 1;
-      $holder = array();
+      $holder = [];
       if ($options['form']) {
-        $holder = array(
+        $holder = [
           '#type'  => 'form',
           '#theme' => 'collapse_text_form',
           '#form_id' => 'collapse-text-dynamic-form-number-' . $render_number,
           '#id' => 'collapse-text-dynamic-form-number-' . $render_number++,
-        );
+        ];
       }
       else {
-        $holder = array(
+        $holder = [
           '#type'   => 'markup',
           '#prefix' => '<div id="' . 'collapse-text-dynamic-div-number-' . $render_number++ . '">',
           '#suffix' => '</div>',
-        );
+        ];
       }
       $holder['collapse_text_internal_text'] = $this->processRecurseTree($tree, $options);
 
@@ -194,7 +193,7 @@ class CollapseText extends FilterBase {
    * This function is recursive.
    */
   public function processRecurseTree($tree, $options) {
-    $parts = array();
+    $parts = [];
     // We use $weight to make sure elements are displayed in the correct order.
     $weight = 0;
 
@@ -230,9 +229,7 @@ class CollapseText extends FilterBase {
 
     // Remove the first backslash before any collapse tags.
     // This allows collapse tags to be escaped.
-    $item = str_replace(array('\\[collapse', '\\[/collapse'),
-                        array('[collapse', '[/collapse'),
-                        $item);
+    $item = str_replace(['\\[collapse', '\\[/collapse'], ['[collapse', '[/collapse'], $item);
 
     // Clear out some miscellaneous tags that are
     // introduced by visual editors...
@@ -249,12 +246,12 @@ class CollapseText extends FilterBase {
     $item = preg_replace('/<br ?\/?>$/', '', $item);
     // Only return a value if there is something besides whitespace.
     if (preg_match('/\S/', $item)) {
-      return array(
+      return [
         '#type'   => 'markup',
         '#markup' => $item,
         '#prefix' => '<div class="collapse-text-text">',
         '#suffix' => '</div>',
-      );
+      ];
     }
     else {
       return NULL;
@@ -268,7 +265,7 @@ class CollapseText extends FilterBase {
 
     // Translate the "tag" into a proper tag,
     // and then parse it as an xml tag.
-    $tag = preg_replace(array('/^\[/', '/\]$/', '/&/'), array('<', '/>', '&amp;'), $item['tag']);
+    $tag = preg_replace(['/^\[/', '/\]$/', '/&/'], ['<', '/>', '&amp;'], $item['tag']);
 
     // Turn HTML entities into XML entities.
     // Issue #1109792 by eronte.
@@ -284,8 +281,8 @@ class CollapseText extends FilterBase {
     // Set up the styles array.
     // We need to include the 'collapsible' and 'collapsed' classes ourself,
     // because this is no longer done by the theme system.
-    $classes = array();
-    $classes[] = Html::cleanCssIdentifier('collapse-text-deatils');
+    $classes = [];
+    $classes[] = Html::cleanCssIdentifier('collapse-text-details');
     $classes[] = 'collapsible';
     if ($collapsed) {
       $classes[] = 'collapsed';
@@ -301,7 +298,7 @@ class CollapseText extends FilterBase {
     // If a title is not supplied, look in the first child for a header tag.
     if (empty($title)) {
       if ($item['value'][0]['type'] == 'text') {
-        $h_matches = array();
+        $h_matches = [];
         if (preg_match('/(<h\d[^>]*>(.+?)<\/h\d>)/smi', $item['value'][0]['value'], $h_matches)) {
           $title = strip_tags($h_matches[2]);
         }
@@ -323,14 +320,14 @@ class CollapseText extends FilterBase {
     }
 
     // Create a details element that can be themed.
-    $details = array(
+    $details = [
       '#type'        => 'details',
       '#theme'       => 'collapse_text_details',
       '#title'       => htmlspecialchars_decode($title),
       '#open'        => !$collapsed,
-      '#attributes'  => array('class' => $classes),
+      '#attributes' => ['class' => $classes],
       'collapse_text_contents' => $this->processRecurseTree($item['value'], $options),
-    );
+    ];
     return $details;
   }
 
@@ -368,11 +365,11 @@ class CollapseText extends FilterBase {
     }
     else {
       // Otherwise, return everything in this segment as a string.
-      return array(array(
-        'type'  => 'text',
+      return [[
+      'type'  => 'text',
         'value' => substr($string, $text_start, $text_length),
-      ),
-      );
+      ],
+      ];
     }
 
     // Find the next end element at the same level.
@@ -401,28 +398,28 @@ class CollapseText extends FilterBase {
         // Fall back to just returning the string...
         // Reset the text length.
         $text_length = $string_end - $text_start;
-        return array(array(
-          'type' => 'text',
+        return [[
+        'type' => 'text',
           'value' => substr($string, $text_start, $text_length),
-        ),
-        );
+        ],
+        ];
       }
     }
 
-    $parts = array();
+    $parts = [];
 
     // Add the text before the opening element.
-    $parts[] = array(
+    $parts[] = [
       'type'  => 'text',
       'value' => substr($string, $text_start, $text_length),
-    );
+    ];
 
     // Add the child element.
-    $parts[] = array(
+    $parts[] = [
       'type'  => 'child',
       'tag'   => $elements[$elt_start]['tag'],
       'value' => $this->processRecurseLevels($string, $child_start, $child_end, array_slice($elements, $slice_start, $slice_length), $options),
-    );
+    ];
 
     // Tail recurse (which ideally could be optimized away,
     // although it won't be...) to handle any siblings.
@@ -436,7 +433,7 @@ class CollapseText extends FilterBase {
    * Helper function to determine what the nesting structure is.
    */
   public function findLevels($tags, $options) {
-    $levels = array();
+    $levels = [];
 
     $curr_level = 0;
     foreach ($tags as $item) {
@@ -455,13 +452,13 @@ class CollapseText extends FilterBase {
         $curr_level++;
       }
 
-      $levels[] = array(
+      $levels[] = [
         'type'  => $type,
         'tag'   => $item[0],
         'start' => $item[1],
         'end'   => $item[1] + strlen($item[0]),
         'level' => $curr_level,
-      );
+      ];
 
       if ($type == 'end') {
         $curr_level--;
@@ -475,7 +472,7 @@ class CollapseText extends FilterBase {
    * Helper function to find all of the [collapse...] tags location.
    */
   public function findTags($text, $options) {
-    $matches = array();
+    $matches = [];
 
     $regex = '/
       (?<!\\\\)     # not proceeded by a backslash
@@ -496,7 +493,7 @@ class CollapseText extends FilterBase {
    * If so, remove it from the text and set the options.
    */
   public function checkOptions($text, $options) {
-    $matches = array();
+    $matches = [];
     $regex_text = '
       (?<!\\\\)     # not proceeded by a backslash
       \[            # opening bracket
@@ -513,7 +510,7 @@ class CollapseText extends FilterBase {
       // baking in an "options" tag.
       $opt_tag = preg_replace('/^\[collapse /', '[', $opt_tag);
       // Change to angle brackets, so it can be parsed as XML.
-      $opt_tag = preg_replace(array('/^\[/', '/\]$/'), array('<', '/>'), $opt_tag);
+      $opt_tag = preg_replace(['/^\[/', '/\]$/'], ['<', '/>'], $opt_tag);
 
       // Turn HTML entities into XML entities.
       $opt_tag = $this->htmlToXmlEntities($opt_tag);
@@ -541,7 +538,7 @@ class CollapseText extends FilterBase {
         $text
       );
     }
-    return array($text, $options);
+    return [$text, $options];
   }
 
   /**
@@ -555,7 +552,7 @@ class CollapseText extends FilterBase {
    * @todo -- rewrite to use str_replace
    */
   public function htmlToXmlEntities($text) {
-    static $replace = array(
+    static $replace = [
       // Latin 1.
       '&nbsp;'    => '&#160;',
       '&iexcl;'   => '&#161;',
@@ -809,7 +806,7 @@ class CollapseText extends FilterBase {
       '&clubs;'   => '&#9827;',
       '&hearts;'  => '&#9829;',
       '&diams;'   => '&#9830;',
-    );
+    ];
     // Only run the substitution if there is actually an entity in the tag.
     if (strpos($text, '&') !== FALSE) {
       $text = strtr($text, $replace);

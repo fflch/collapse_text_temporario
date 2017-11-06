@@ -8,16 +8,16 @@
  * Implements hook_theme().
  */
 function collapse_text_theme($existing, $type, $theme, $path) {
-  return array(
-    'collapse_text_details' => array(
+  return [
+    'collapse_text_details' => [
       'render element' => 'element',
       'function' => 'theme_collapse_text_details',
-    ),
-    'collapse_text_form' => array(
+    ],
+    'collapse_text_form' => [
       'render element' => 'element',
       'function' => 'theme_collapse_text_form',
-    ),
-  );
+    ],
+  ];
 }
 
 /**
