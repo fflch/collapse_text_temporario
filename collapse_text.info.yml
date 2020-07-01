@@ -4,4 +4,4 @@ package: "Input filters"
 type: module
 core: 8.x
 dependencies:
-  - filter
+  - drupal:filter
