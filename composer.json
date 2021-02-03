@@ -1,0 +1,7 @@
+{
+    "name": "drupal/collapse_text",
+    "description": "collapse_text",
+    "type": "drupal-module",
+    "minimum-stability": "dev",
+    "license": "GPL-2.0+"
+  }
